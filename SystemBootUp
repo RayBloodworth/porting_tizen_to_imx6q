@@ -6,7 +6,7 @@ bitbake core-image-weston
 Note:These images should be built with sfp.To enable sfp,add the followed line into your local.conf:
 DEFAULTTUNE_mx6 = "cortexa9-neon"
 
-Note:You should use 3.10.31 or above to support weston1.5
+Note:You should use 3.10.17 or above to support weston1.5
 
 ==================================================
 Flash u-boot, device tree and kernel to SD card:
