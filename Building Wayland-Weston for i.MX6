@@ -1,0 +1,103 @@
+
+Reference:
+https://community.freescale.com/docs/DOC-95380
+
+The steps below should be executed in target devices.
+
+================================================================
+Step 1: Install packages with "zypper in" command
+Install these packages:
+automake gcc make libtool libffi-devel libexpat-devel libudev-devel mtdev mtdev-devel libjpeg-devel libpng-devel cairo-devel pam-devel libxkbcommon-devel
+================================================================
+
+================================================================
+Step 2: Remove packages with "rpm -evh --nodeps xxx" command
+Remove these packages:
+mesa mesa-libEGL mesa-libGLESv1_CM mesa-libGLESv2 mesa-libglapi libgbm libwayland-egl libwayland-client libwayland-sursor libwayland-server weston
+================================================================
+
+================================================================
+Step 3: Build wayland
+Download wayland-1.5.0 and weston-1.5.0 sourcecode from "http://wayland.freedesktop.org/releases.html", and copy them to file system.
+
+Setting up the environment. This need to be performed on the target
+$export WLD=/usr
+$export LD_LIBRARY_PATH=$WLD/lib
+$export PKG_CONFIG_PATH=$WLD/lib/pkgconfig/:$WLD/share/pkgconfig/
+$export ACLOCAL="aclocal -I $WLD/share/aclocal"
+ 
+       Also, create the 'share/aclocal' directory.
+ 
+               $mkdir -p $WLD/share/aclocal
+      Let us consider, extracting the package to /opt
+$cd /opt
+$tar xvvf wayland-1.5.0.tar.xz
+$cd wayland-1.5.0
+$ ./configure --prefix=$WLD --disable-documentation
+$ make
+$ make install
+================================================================
+
+================================================================
+Step 4: Setting up GPU-VIV graphics drivers
+The GPU-VIV graphics drivers are available as part of BSP release.
+They are located in "<yocto build dir>/tmp/work/cortexa9-vfp-neon-mx6qdl-poky-linux-gnueabi/gpu-viv-bin-mx6q/1_3.10.17-1.0.2-sfp-r0/image/".
+Copy them to device's rootfs with command "sudo cp -rf <yocto build dir>/tmp/work/cortexa9-vfp-neon-mx6qdl-poky-linux-gnueabi/gpu-viv-bin-mx6q/1_3.10.17-1.0.2-sfp-r0/image/* /rootfs"
+Add a link to support wayland-egl: 
+ln -s libEGL.so.1.0 libwayland-egl.so
+ln -s libEGL.so.1.0 libwayland-egl.so.1
+ln -s libEGL.so.1.0 libwayland-egl.so.1.0
+================================================================
+
+================================================================
+Step 5: Build weston
+ Now add the following environment settings in the terminal window. (Note the "`"- backtick - character).
+export WLD=/usr
+export LD_LIBRARY_PATH=$WLD/lib
+export PKG_CONFIG_PATH=$WLD/lib/pkgconfig/:$WLD/share/pkgconfig/
+export ACLOCAL="aclocal -I $WLD/share/aclocal"
+export LD_LIBRARY_PATH="/usr/lib"
+export LDFLAGS="-lwayland-server -lwayland-client -lwayland-server -lwayland-cursor -lpixman-1"
+export COMPOSITOR_LIBS="-lGLESv2 -lEGL -lGAL -lwayland-server -lxkbcommon -lpixman-1"
+export COMPOSITOR_CFLAGS="-I $WLD/include -I $WLD/include/pixman-1 -L$SDK_DIR/drivers -DLINUX=1 -DEGL_API_FB -DEGL_API_WL"
+export CLIENT_CFLAGS="-I $WLD/include -I $WLD/include/cairo -I $WLD/include/pixman-1"
+export CLIENT_LIBS="-lGLESv2 -lEGL -lwayland-client -lwayland-cursor -lxkbcommon"
+export SIMPLE_EGL_CLIENT_CFLAGS="-DLINUX=1 -DEGL_API_FB -DEGL_API_WL -I $WLD/include"
+export SIMPLE_EGL_CLIENT_LIBS="-lGLESv2 -lEGL -lwayland-client -lwayland-cursor"
+export IMAGE_LIBS="-lwayland-cursor"
+export WESTON_INFO_LIBS="-lwayland-client"
+
+Apply patches:
+0001-Add-Vivante-EGL-support.patch
+0002-Add-Vivante-GAL2D-support.patch
+0003-Distorted-line-and-shadow-if-use-2d-com.patch
+0004-Desktop-shell-Don-t-assume-there-is-a-pointer.patch
+0005-Enable-GAL2D-compositor-in-SoloLite.patch
+0006-Change-GAL2D-compositor-to-be-default-i.patch
+disable-wayland-scanner-pkg-check.patch
+make-lcms-configurable.patch
+
+Build the weston:
+./configure --prefix=$WLD \
+        --disable-setuid-install --disable-wayland-compositor \
+        --disable-x11-compositor --disable-drm-compositor \
+        --disable-rpi-compositor --disable-xwayland \
+        --disable-libunwind --disable-xwayland-test \
+WESTON_NATIVE_BACKEND="fbdev-backend.so"
+make
+make install
+================================================================
+
+================================================================
+Step 6: Make weston usable
+1.Make sure weston could use input devices.
+# chmod +s weston-launch
+2.Add the user "app" into group "weston-launch".(permission)
+3.Add the user "app" into group "video" to add permission for opening fb device.
+4.weston will be crashed since /dev/galcore permission are crw.rw.rw.
+Add command line in systemd/system/ services:
+ExecStartPre=-/bin/sh -l -c "chmod a+r /dev/galcore"
+ExecStartPre=-/bin/sh -l -c "chmod a+w /dev/galcore"
+================================================================
+
+Reboot and have fun with it!
